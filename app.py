@@ -1,7 +1,10 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
+CORS(app)  # This will allow all domains, you can restrict this to specific domains if needed
+
 
 # Set the PostgreSQL URI (replace with your own credentials)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:postgres@localhost:5432/mypfm'
