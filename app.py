@@ -33,6 +33,7 @@ class Property(db.Model):
 class Account(db.Model):
     __tablename__ = 'accounts'
     id           = db.Column(db.Integer, primary_key=True)
+    propertyid   = db.Column(db.Integer)
     type         = db.Column(db.String(50))
     bsb          = db.Column(db.String(20))
     accountno    = db.Column(db.String(20))
@@ -225,7 +226,7 @@ def get_account(id):
 @app.route('/api/accounts', methods=['POST'])
 def create_account():
     d = request.get_json()
-    a = Account(**{k: d.get(k) for k in ('type','bsb','accountno','provider','productname','balance','interestrate','emi')})
+    a = Account(**{k: d.get(k) for k in ('type','bsb','accountno','provider','productname','balance','interestrate','emi','propertyid')})
     db.session.add(a)
     db.session.commit()
     return jsonify(a.to_dict()), 201
