@@ -102,6 +102,22 @@ class Bill(db.Model):
     accountid    = db.Column(db.Integer)
     propertyid   = db.Column(db.Integer)
 
+class Income(db.Model):
+    __tablename__ = 'incomes'
+    id           = db.Column(db.Integer, primary_key=True)
+    name         = db.Column(db.String(100))
+    category     = db.Column(db.String(100))
+    subcategory1 = db.Column(db.String(100))
+    subcategory2 = db.Column(db.String(100))
+    subcategory3 = db.Column(db.String(100))
+    provider     = db.Column(db.String(100))
+    frequency    = db.Column(db.String(100))
+    amount       = db.Column(db.Numeric(15, 2))
+    startdate    = db.Column(db.Date)
+    enddate      = db.Column(db.Date)
+    accountid    = db.Column(db.Integer)
+    propertyid   = db.Column(db.Integer)
+
 class Category(db.Model):
     __tablename__ = 'categories'
     id           = db.Column(db.Integer, primary_key=True)
@@ -126,7 +142,7 @@ def to_dict(self):
     return result
 
 for cls in (Member, Property, Account, Transaction,
-            Purchase, PurchasedItem, Bill, Category):
+            Purchase, PurchasedItem, Bill, Income, Category):
     cls.to_dict = to_dict
 
 def parse_date(date_str):
@@ -150,29 +166,25 @@ def get_member(id):
 
 @app.route('/api/members', methods=['POST'])
 def create_member():
-    data = request.get_json()
-    dob = parse_date(data.get('dob'))
-    m = Member(name=data['name'], dob=dob)
+    d = request.get_json()
+    m = Member(name=d['name'], dob=parse_date(d.get('dob')))
     db.session.add(m)
     db.session.commit()
     return jsonify(m.to_dict()), 201
 
 @app.route('/api/members/<int:id>', methods=['PUT'])
 def update_member(id):
-    data = request.get_json()
+    d = request.get_json()
     m = Member.query.get(id)
-    if not m:
-        return jsonify({'msg':'Not found'}), 404
-    m.name = data['name']
-    m.dob  = parse_date(data.get('dob'))
+    if not m: return jsonify({'msg':'Not found'}), 404
+    m.name, m.dob = d['name'], parse_date(d.get('dob'))
     db.session.commit()
     return jsonify(m.to_dict())
 
 @app.route('/api/members/<int:id>', methods=['DELETE'])
 def delete_member(id):
     m = Member.query.get(id)
-    if not m:
-        return jsonify({'msg':'Not found'}), 404
+    if not m: return jsonify({'msg':'Not found'}), 404
     db.session.delete(m)
     db.session.commit()
     return '', 204
@@ -199,19 +211,15 @@ def create_property():
 def update_property(id):
     d = request.get_json()
     p = Property.query.get(id)
-    if not p:
-        return jsonify({'msg':'Not found'}), 404
-    p.address = d['address']
-    p.suburb  = d['suburb']
-    p.purpose = d['purpose']
+    if not p: return jsonify({'msg':'Not found'}), 404
+    p.address, p.suburb, p.purpose = d['address'], d['suburb'], d['purpose']
     db.session.commit()
     return jsonify(p.to_dict())
 
 @app.route('/api/properties/<int:id>', methods=['DELETE'])
 def delete_property(id):
     p = Property.query.get(id)
-    if not p:
-        return jsonify({'msg':'Not found'}), 404
+    if not p: return jsonify({'msg':'Not found'}), 404
     db.session.delete(p)
     db.session.commit()
     return '', 204
@@ -241,8 +249,7 @@ def create_account():
 def update_account(id):
     d = request.get_json()
     a = Account.query.get(id)
-    if not a:
-        return jsonify({'msg':'Not found'}), 404
+    if not a: return jsonify({'msg':'Not found'}), 404
     for k in ('type','bsb','accountno','provider','productname',
               'balance','interestrate','emi','propertyid'):
         setattr(a, k, d.get(k))
@@ -252,8 +259,7 @@ def update_account(id):
 @app.route('/api/accounts/<int:id>', methods=['DELETE'])
 def delete_account(id):
     a = Account.query.get(id)
-    if not a:
-        return jsonify({'msg':'Not found'}), 404
+    if not a: return jsonify({'msg':'Not found'}), 404
     db.session.delete(a)
     db.session.commit()
     return '', 204
@@ -271,12 +277,22 @@ def get_transaction(id):
 @app.route('/api/transactions', methods=['POST'])
 def create_transaction():
     d = request.get_json()
-    td = parse_date(d.get('transactiondate'))
-    t = Transaction(**{k: d.get(k) for k in (
-        'billid','purchaseid','name','direction','status',
-        'category','subcategory1','subcategory2','subcategory3',
-        'provider','amount','accountid','propertyid'
-    )}, transactiondate=td)
+    t = Transaction(
+        billid=d.get('billid'),
+        purchaseid=d.get('purchaseid'),
+        name=d.get('name'),
+        direction=d.get('direction'),
+        status=d.get('status'),
+        category=d.get('category'),
+        subcategory1=d.get('subcategory1'),
+        subcategory2=d.get('subcategory2'),
+        subcategory3=d.get('subcategory3'),
+        provider=d.get('provider'),
+        amount=d.get('amount'),
+        transactiondate=parse_date(d.get('transactiondate')),
+        accountid=d.get('accountid'),
+        propertyid=d.get('propertyid')
+    )
     db.session.add(t)
     db.session.commit()
     return jsonify(t.to_dict()), 201
@@ -285,8 +301,7 @@ def create_transaction():
 def update_transaction(id):
     d = request.get_json()
     t = Transaction.query.get(id)
-    if not t:
-        return jsonify({'msg':'Not found'}), 404
+    if not t: return jsonify({'msg':'Not found'}), 404
     t.transactiondate = parse_date(d.get('transactiondate'))
     for k in (
         'billid','purchaseid','name','direction','status',
@@ -300,8 +315,7 @@ def update_transaction(id):
 @app.route('/api/transactions/<int:id>', methods=['DELETE'])
 def delete_transaction(id):
     t = Transaction.query.get(id)
-    if not t:
-        return jsonify({'msg':'Not found'}), 404
+    if not t: return jsonify({'msg':'Not found'}), 404
     db.session.delete(t)
     db.session.commit()
     return '', 204
@@ -319,11 +333,19 @@ def get_purchase(id):
 @app.route('/api/purchases', methods=['POST'])
 def create_purchase():
     d = request.get_json()
-    pd = parse_date(d.get('purchasedate'))
-    p = Purchase(**{k: d.get(k) for k in (
-        'transactionid','memberid','provider','address','category',
-        'subcategory1','subcategory2','subcategory3','accountid','amount'
-    )}, purchasedate=pd)
+    p = Purchase(
+        transactionid=d.get('transactionid'),
+        memberid=d.get('memberid'),
+        provider=d.get('provider'),
+        address=d.get('address'),
+        category=d.get('category'),
+        subcategory1=d.get('subcategory1'),
+        subcategory2=d.get('subcategory2'),
+        subcategory3=d.get('subcategory3'),
+        accountid=d.get('accountid'),
+        purchasedate=parse_date(d.get('purchasedate')),
+        amount=d.get('amount')
+    )
     db.session.add(p)
     db.session.commit()
     return jsonify(p.to_dict()), 201
@@ -332,8 +354,7 @@ def create_purchase():
 def update_purchase(id):
     d = request.get_json()
     p = Purchase.query.get(id)
-    if not p:
-        return jsonify({'msg':'Not found'}), 404
+    if not p: return jsonify({'msg':'Not found'}), 404
     p.purchasedate = parse_date(d.get('purchasedate'))
     for k in (
         'transactionid','memberid','provider','address','category',
@@ -346,8 +367,7 @@ def update_purchase(id):
 @app.route('/api/purchases/<int:id>', methods=['DELETE'])
 def delete_purchase(id):
     p = Purchase.query.get(id)
-    if not p:
-        return jsonify({'msg':'Not found'}), 404
+    if not p: return jsonify({'msg':'Not found'}), 404
     db.session.delete(p)
     db.session.commit()
     return '', 204
@@ -376,8 +396,7 @@ def create_purchased_item():
 def update_purchased_item(id):
     d = request.get_json()
     pi = PurchasedItem.query.get(id)
-    if not pi:
-        return jsonify({'msg':'Not found'}), 404
+    if not pi: return jsonify({'msg':'Not found'}), 404
     for k in ('purchaseid','volunits','qty','price','costperunit'):
         setattr(pi, k, d.get(k))
     db.session.commit()
@@ -386,13 +405,12 @@ def update_purchased_item(id):
 @app.route('/api/purchaseditems/<int:id>', methods=['DELETE'])
 def delete_purchased_item(id):
     pi = PurchasedItem.query.get(id)
-    if not pi:
-        return jsonify({'msg':'Not found'}), 404
+    if not pi: return jsonify({'msg':'Not found'}), 404
     db.session.delete(pi)
     db.session.commit()
     return '', 204
 
-## Bills
+## Bills & auto-generate Transactions
 @app.route('/api/bills', methods=['GET'])
 def get_bills():
     return jsonify([b.to_dict() for b in Bill.query.all()])
@@ -407,7 +425,6 @@ def create_bill():
     d = request.get_json()
     sd = parse_date(d.get('startdate'))
     ed = parse_date(d.get('enddate'))
-    # create the Bill
     b = Bill(
         name=d.get('name'),
         category=d.get('category'),
@@ -423,13 +440,13 @@ def create_bill():
         propertyid=d.get('propertyid')
     )
     db.session.add(b)
-    db.session.flush()  # so b.id is populated
+    db.session.flush()  # b.id now available
 
-    # determine generation end
+    # determine generation end date
     today = date.today()
-    gen_end = ed if ed else (sd + relativedelta(years=2))
+    gen_end = ed if ed else sd + relativedelta(years=2)
 
-    # choose step
+    # choose step from frequency
     freq = b.frequency
     if freq == 'Weekly':
         step = relativedelta(weeks=1)
@@ -464,7 +481,7 @@ def create_bill():
         db.session.add(txn)
         if not step:
             break
-        current = current + step
+        current += step
 
     db.session.commit()
     return jsonify(b.to_dict()), 201
@@ -473,10 +490,9 @@ def create_bill():
 def update_bill(id):
     d = request.get_json()
     b = Bill.query.get(id)
-    if not b:
-        return jsonify({'msg':'Not found'}), 404
+    if not b: return jsonify({'msg':'Not found'}), 404
 
-    # update Bill fields
+    # update bill
     b.name         = d.get('name')
     b.category     = d.get('category')
     b.subcategory1 = d.get('subcategory1')
@@ -491,12 +507,15 @@ def update_bill(id):
     b.propertyid   = d.get('propertyid')
     db.session.flush()
 
-    # remove old transactions
-    Transaction.query.filter_by(billid=b.id).delete()
+    # delete future transactions for this bill
+    Transaction.query.filter(
+        Transaction.billid == b.id,
+        Transaction.transactiondate >= date.today()
+    ).delete()
 
     # re-generate
     today = date.today()
-    gen_end = b.enddate if b.enddate else (b.startdate + relativedelta(years=2))
+    gen_end = b.enddate if b.enddate else b.startdate + relativedelta(years=2)
 
     freq = b.frequency
     if freq == 'Weekly':
@@ -532,7 +551,7 @@ def update_bill(id):
         db.session.add(txn)
         if not step:
             break
-        current = current + step
+        current += step
 
     db.session.commit()
     return jsonify(b.to_dict())
@@ -540,11 +559,172 @@ def update_bill(id):
 @app.route('/api/bills/<int:id>', methods=['DELETE'])
 def delete_bill(id):
     b = Bill.query.get(id)
-    if not b:
-        return jsonify({'msg':'Not found'}), 404
+    if not b: return jsonify({'msg':'Not found'}), 404
+    # delete all future txns for this bill
+    Transaction.query.filter(
+        Transaction.billid == id,
+        Transaction.transactiondate >= date.today()
+    ).delete()
     db.session.delete(b)
-    # remove any linked transactions as well
-    Transaction.query.filter_by(billid=id).delete()
+    db.session.commit()
+    return '', 204
+
+## Incomes & auto-generate Transactions
+@app.route('/api/incomes', methods=['GET'])
+def get_incomes():
+    return jsonify([i.to_dict() for i in Income.query.all()])
+
+@app.route('/api/incomes/<int:id>', methods=['GET'])
+def get_income(id):
+    i = Income.query.get(id)
+    return (jsonify(i.to_dict()), 200) if i else (jsonify({'msg':'Not found'}), 404)
+
+@app.route('/api/incomes', methods=['POST'])
+def create_income():
+    d = request.get_json()
+    sd = parse_date(d.get('startdate'))
+    ed = parse_date(d.get('enddate'))
+    inc = Income(
+        name=d.get('name'),
+        category=d.get('category'),
+        subcategory1=d.get('subcategory1'),
+        subcategory2=d.get('subcategory2'),
+        subcategory3=d.get('subcategory3'),
+        provider=d.get('provider'),
+        frequency=d.get('frequency'),
+        amount=d.get('amount'),
+        startdate=sd,
+        enddate=ed,
+        accountid=d.get('accountid'),
+        propertyid=d.get('propertyid')
+    )
+    db.session.add(inc)
+    db.session.flush()
+
+    today = date.today()
+    gen_end = ed if ed else sd + relativedelta(years=2)
+
+    freq = inc.frequency
+    if freq == 'Weekly':
+        step = relativedelta(weeks=1)
+    elif freq == 'Fortnightly':
+        step = relativedelta(weeks=2)
+    elif freq == 'Monthly':
+        step = relativedelta(months=1)
+    elif freq == 'Yearly':
+        step = relativedelta(years=1)
+    else:
+        step = None
+
+    current = sd
+    while current and current <= gen_end:
+        status = 'Paid' if current < today else 'Scheduled'
+        txn = Transaction(
+            billid=None,
+            purchaseid=None,
+            name=inc.name,
+            direction='Income',
+            status=status,
+            category=inc.category,
+            subcategory1=inc.subcategory1,
+            subcategory2=inc.subcategory2,
+            subcategory3=inc.subcategory3,
+            provider=inc.provider,
+            amount=inc.amount,
+            transactiondate=current,
+            accountid=inc.accountid,
+            propertyid=inc.propertyid
+        )
+        db.session.add(txn)
+        if not step:
+            break
+        current += step
+
+    db.session.commit()
+    return jsonify(inc.to_dict()), 201
+
+@app.route('/api/incomes/<int:id>', methods=['PUT'])
+def update_income(id):
+    d = request.get_json()
+    inc = Income.query.get(id)
+    if not inc: return jsonify({'msg':'Not found'}), 404
+
+    inc.name         = d.get('name')
+    inc.category     = d.get('category')
+    inc.subcategory1 = d.get('subcategory1')
+    inc.subcategory2 = d.get('subcategory2')
+    inc.subcategory3 = d.get('subcategory3')
+    inc.provider     = d.get('provider')
+    inc.frequency    = d.get('frequency')
+    inc.amount       = d.get('amount')
+    inc.startdate    = parse_date(d.get('startdate'))
+    inc.enddate      = parse_date(d.get('enddate'))
+    inc.accountid    = d.get('accountid')
+    inc.propertyid   = d.get('propertyid')
+    db.session.flush()
+
+    # delete future income txns
+    Transaction.query.filter(
+        Transaction.direction=='Income',
+        Transaction.transactiondate >= date.today(),
+        Transaction.purchaseid==None,
+        Transaction.billid==None
+    ).delete()
+
+    today = date.today()
+    gen_end = inc.enddate if inc.enddate else inc.startdate + relativedelta(years=2)
+
+    freq = inc.frequency
+    if freq == 'Weekly':
+        step = relativedelta(weeks=1)
+    elif freq == 'Fortnightly':
+        step = relativedelta(weeks=2)
+    elif freq == 'Monthly':
+        step = relativedelta(months=1)
+    elif freq == 'Yearly':
+        step = relativedelta(years=1)
+    else:
+        step = None
+
+    current = inc.startdate
+    while current and current <= gen_end:
+        status = 'Paid' if current < today else 'Scheduled'
+        txn = Transaction(
+            billid=None,
+            purchaseid=None,
+            name=inc.name,
+            direction='Income',
+            status=status,
+            category=inc.category,
+            subcategory1=inc.subcategory1,
+            subcategory2=inc.subcategory2,
+            subcategory3=inc.subcategory3,
+            provider=inc.provider,
+            amount=inc.amount,
+            transactiondate=current,
+            accountid=inc.accountid,
+            propertyid=inc.propertyid
+        )
+        db.session.add(txn)
+        if not step:
+            break
+        current += step
+
+    db.session.commit()
+    return jsonify(inc.to_dict())
+
+@app.route('/api/incomes/<int:id>', methods=['DELETE'])
+def delete_income(id):
+    inc = Income.query.get(id)
+    if not inc: return jsonify({'msg':'Not found'}), 404
+    # delete future income txns
+    Transaction.query.filter(
+        Transaction.direction=='Income',
+        Transaction.transactiondate >= date.today(),
+        Transaction.purchaseid==None,
+        Transaction.billid==None
+    ).delete()
+    db.session.delete(inc)
     db.session.commit()
     return '', 204
 
@@ -572,8 +752,7 @@ def create_category():
 def update_category(id):
     d = request.get_json()
     c = Category.query.get(id)
-    if not c:
-        return jsonify({'msg':'Not found'}), 404
+    if not c: return jsonify({'msg':'Not found'}), 404
     for k in ('category','subcategory1','subcategory2','subcategory3','direction'):
         setattr(c, k, d.get(k))
     db.session.commit()
@@ -582,8 +761,7 @@ def update_category(id):
 @app.route('/api/categories/<int:id>', methods=['DELETE'])
 def delete_category(id):
     c = Category.query.get(id)
-    if not c:
-        return jsonify({'msg':'Not found'}), 404
+    if not c: return jsonify({'msg':'Not found'}), 404
     db.session.delete(c)
     db.session.commit()
     return '', 204
