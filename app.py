@@ -4,6 +4,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, date
+from dateutil.relativedelta import relativedelta
 
 app = Flask(__name__)
 CORS(app)
@@ -50,7 +51,7 @@ class Transaction(db.Model):
     purchaseid      = db.Column(db.Integer)
     status          = db.Column(db.String(20))
     direction       = db.Column(db.String(20))
-    name          =   db.Column(db.String(100))
+    name            = db.Column(db.String(100))
     category        = db.Column(db.String(50))
     subcategory1    = db.Column(db.String(50))
     subcategory2    = db.Column(db.String(50))
@@ -104,7 +105,7 @@ class Bill(db.Model):
 class Category(db.Model):
     __tablename__ = 'categories'
     id           = db.Column(db.Integer, primary_key=True)
-    direction    = db.Column(db.String(20))   
+    direction    = db.Column(db.String(20))
     category     = db.Column(db.String(100))
     subcategory1 = db.Column(db.String(100))
     subcategory2 = db.Column(db.String(100))
@@ -114,7 +115,6 @@ class Category(db.Model):
 # Helpers
 # ----------------------
 
-# Convert model instance to dict, format dates as 'YYYY-MM-DD'
 def to_dict(self):
     result = {}
     for col in self.__table__.columns:
@@ -129,7 +129,6 @@ for cls in (Member, Property, Account, Transaction,
             Purchase, PurchasedItem, Bill, Category):
     cls.to_dict = to_dict
 
-# Parse optional date strings to Python date
 def parse_date(date_str):
     if date_str:
         return datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -230,7 +229,10 @@ def get_account(id):
 @app.route('/api/accounts', methods=['POST'])
 def create_account():
     d = request.get_json()
-    a = Account(**{k: d.get(k) for k in ('type','bsb','accountno','provider','productname','balance','interestrate','emi','propertyid')})
+    a = Account(**{k: d.get(k) for k in (
+        'type','bsb','accountno','provider','productname',
+        'balance','interestrate','emi','propertyid'
+    )})
     db.session.add(a)
     db.session.commit()
     return jsonify(a.to_dict()), 201
@@ -241,7 +243,8 @@ def update_account(id):
     a = Account.query.get(id)
     if not a:
         return jsonify({'msg':'Not found'}), 404
-    for k in ('type','bsb','accountno','provider','productname','balance','interestrate','emi','propertyid'):
+    for k in ('type','bsb','accountno','provider','productname',
+              'balance','interestrate','emi','propertyid'):
         setattr(a, k, d.get(k))
     db.session.commit()
     return jsonify(a.to_dict())
@@ -269,20 +272,27 @@ def get_transaction(id):
 def create_transaction():
     d = request.get_json()
     td = parse_date(d.get('transactiondate'))
-    t = Transaction(**{k: d.get(k) for k in ('billid','purchaseid','name','direction','status','category','subcategory1','subcategory2','subcategory3','provider','amount','accountid','propertyid')},
-                    transactiondate=td)
+    t = Transaction(**{k: d.get(k) for k in (
+        'billid','purchaseid','name','direction','status',
+        'category','subcategory1','subcategory2','subcategory3',
+        'provider','amount','accountid','propertyid'
+    )}, transactiondate=td)
     db.session.add(t)
     db.session.commit()
     return jsonify(t.to_dict()), 201
 
 @app.route('/api/transactions/<int:id>', methods=['PUT'])
 def update_transaction(id):
-    d =request.get_json()
+    d = request.get_json()
     t = Transaction.query.get(id)
     if not t:
         return jsonify({'msg':'Not found'}), 404
     t.transactiondate = parse_date(d.get('transactiondate'))
-    for k in ('billid','purchaseid','name','direction','status','category','subcategory1','subcategory2','subcategory3','provider','amount','accountid','propertyid'):
+    for k in (
+        'billid','purchaseid','name','direction','status',
+        'category','subcategory1','subcategory2','subcategory3',
+        'provider','amount','accountid','propertyid'
+    ):
         setattr(t, k, d.get(k))
     db.session.commit()
     return jsonify(t.to_dict())
@@ -310,11 +320,14 @@ def get_purchase(id):
 def create_purchase():
     d = request.get_json()
     pd = parse_date(d.get('purchasedate'))
-    p = Purchase(**{k: d.get(k) for k in ('transactionid','memberid','provider','address','category','subcategory1','subcategory2','subcategory3','accountid','amount')},
-                 purchasedate=pd)
+    p = Purchase(**{k: d.get(k) for k in (
+        'transactionid','memberid','provider','address','category',
+        'subcategory1','subcategory2','subcategory3','accountid','amount'
+    )}, purchasedate=pd)
     db.session.add(p)
     db.session.commit()
     return jsonify(p.to_dict()), 201
+
 @app.route('/api/purchases/<int:id>', methods=['PUT'])
 def update_purchase(id):
     d = request.get_json()
@@ -322,7 +335,10 @@ def update_purchase(id):
     if not p:
         return jsonify({'msg':'Not found'}), 404
     p.purchasedate = parse_date(d.get('purchasedate'))
-    for k in ('transactionid','memberid','provider','address','category','subcategory1','subcategory2','subcategory3','accountid','amount'):
+    for k in (
+        'transactionid','memberid','provider','address','category',
+        'subcategory1','subcategory2','subcategory3','accountid','amount'
+    ):
         setattr(p, k, d.get(k))
     db.session.commit()
     return jsonify(p.to_dict())
@@ -349,7 +365,9 @@ def get_purchased_item(id):
 @app.route('/api/purchaseditems', methods=['POST'])
 def create_purchased_item():
     d = request.get_json()
-    pi = PurchasedItem(**{k: d.get(k) for k in ('purchaseid','volunits','qty','price','costperunit')})
+    pi = PurchasedItem(**{k: d.get(k) for k in (
+        'purchaseid','volunits','qty','price','costperunit'
+    )})
     db.session.add(pi)
     db.session.commit()
     return jsonify(pi.to_dict()), 201
@@ -389,9 +407,65 @@ def create_bill():
     d = request.get_json()
     sd = parse_date(d.get('startdate'))
     ed = parse_date(d.get('enddate'))
-    b = Bill(**{k: d.get(k) for k in ('name','category','subcategory1','subcategory2','subcategory3','provider','frequency','amount','accountid','propertyid')},
-             startdate=sd, enddate=ed)
+    # create the Bill
+    b = Bill(
+        name=d.get('name'),
+        category=d.get('category'),
+        subcategory1=d.get('subcategory1'),
+        subcategory2=d.get('subcategory2'),
+        subcategory3=d.get('subcategory3'),
+        provider=d.get('provider'),
+        frequency=d.get('frequency'),
+        amount=d.get('amount'),
+        startdate=sd,
+        enddate=ed,
+        accountid=d.get('accountid'),
+        propertyid=d.get('propertyid')
+    )
     db.session.add(b)
+    db.session.flush()  # so b.id is populated
+
+    # determine generation end
+    today = date.today()
+    gen_end = ed if ed else (sd + relativedelta(years=2))
+
+    # choose step
+    freq = b.frequency
+    if freq == 'Weekly':
+        step = relativedelta(weeks=1)
+    elif freq == 'Fortnightly':
+        step = relativedelta(weeks=2)
+    elif freq == 'Monthly':
+        step = relativedelta(months=1)
+    elif freq == 'Yearly':
+        step = relativedelta(years=1)
+    else:
+        step = None
+
+    current = sd
+    while current and current <= gen_end:
+        status = 'Paid' if current < today else 'Scheduled'
+        txn = Transaction(
+            billid=b.id,
+            purchaseid=None,
+            name=b.name,
+            direction='Expense',
+            status=status,
+            category=b.category,
+            subcategory1=b.subcategory1,
+            subcategory2=b.subcategory2,
+            subcategory3=b.subcategory3,
+            provider=b.provider,
+            amount=b.amount,
+            transactiondate=current,
+            accountid=b.accountid,
+            propertyid=b.propertyid
+        )
+        db.session.add(txn)
+        if not step:
+            break
+        current = current + step
+
     db.session.commit()
     return jsonify(b.to_dict()), 201
 
@@ -401,10 +475,65 @@ def update_bill(id):
     b = Bill.query.get(id)
     if not b:
         return jsonify({'msg':'Not found'}), 404
-    b.startdate = parse_date(d.get('startdate'))
-    b.enddate   = parse_date(d.get('enddate'))
-    for k in ('name','category','subcategory1','subcategory2','subcategory3','provider','frequency','amount','accountid','propertyid'):
-        setattr(b, k, d.get(k))
+
+    # update Bill fields
+    b.name         = d.get('name')
+    b.category     = d.get('category')
+    b.subcategory1 = d.get('subcategory1')
+    b.subcategory2 = d.get('subcategory2')
+    b.subcategory3 = d.get('subcategory3')
+    b.provider     = d.get('provider')
+    b.frequency    = d.get('frequency')
+    b.amount       = d.get('amount')
+    b.startdate    = parse_date(d.get('startdate'))
+    b.enddate      = parse_date(d.get('enddate'))
+    b.accountid    = d.get('accountid')
+    b.propertyid   = d.get('propertyid')
+    db.session.flush()
+
+    # remove old transactions
+    Transaction.query.filter_by(billid=b.id).delete()
+
+    # re-generate
+    today = date.today()
+    gen_end = b.enddate if b.enddate else (b.startdate + relativedelta(years=2))
+
+    freq = b.frequency
+    if freq == 'Weekly':
+        step = relativedelta(weeks=1)
+    elif freq == 'Fortnightly':
+        step = relativedelta(weeks=2)
+    elif freq == 'Monthly':
+        step = relativedelta(months=1)
+    elif freq == 'Yearly':
+        step = relativedelta(years=1)
+    else:
+        step = None
+
+    current = b.startdate
+    while current and current <= gen_end:
+        status = 'Paid' if current < today else 'Scheduled'
+        txn = Transaction(
+            billid=b.id,
+            purchaseid=None,
+            name=b.name,
+            direction='Expense',
+            status=status,
+            category=b.category,
+            subcategory1=b.subcategory1,
+            subcategory2=b.subcategory2,
+            subcategory3=b.subcategory3,
+            provider=b.provider,
+            amount=b.amount,
+            transactiondate=current,
+            accountid=b.accountid,
+            propertyid=b.propertyid
+        )
+        db.session.add(txn)
+        if not step:
+            break
+        current = current + step
+
     db.session.commit()
     return jsonify(b.to_dict())
 
@@ -414,6 +543,8 @@ def delete_bill(id):
     if not b:
         return jsonify({'msg':'Not found'}), 404
     db.session.delete(b)
+    # remove any linked transactions as well
+    Transaction.query.filter_by(billid=id).delete()
     db.session.commit()
     return '', 204
 
@@ -430,7 +561,9 @@ def get_category(id):
 @app.route('/api/categories', methods=['POST'])
 def create_category():
     d = request.get_json()
-    c = Category(**{k: d.get(k) for k in ('category','subcategory1','subcategory2','subcategory3','direction')})
+    c = Category(**{k: d.get(k) for k in (
+        'category','subcategory1','subcategory2','subcategory3','direction'
+    )})
     db.session.add(c)
     db.session.commit()
     return jsonify(c.to_dict()), 201
