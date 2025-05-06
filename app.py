@@ -135,10 +135,7 @@ def to_dict(self):
     result = {}
     for col in self.__table__.columns:
         val = getattr(self, col.name)
-        if isinstance(val, date):
-            result[col.name] = val.isoformat()
-        else:
-            result[col.name] = val
+        result[col.name] = val.isoformat() if isinstance(val, date) else val
     return result
 
 for cls in (Member, Property, Account, Transaction,
@@ -146,9 +143,29 @@ for cls in (Member, Property, Account, Transaction,
     cls.to_dict = to_dict
 
 def parse_date(date_str):
-    if date_str:
-        return datetime.strptime(date_str, '%Y-%m-%d').date()
-    return None
+    return datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else None
+
+def _date_series(start, end, freq):
+    """
+    Yield dates from start up to end (inclusive) by freq,
+    where freq is one of 'Weekly', 'Fortnightly', 'Monthly', 'Yearly'.
+    """
+    if not start: 
+        return
+    step = {
+        'Weekly': relativedelta(weeks=1),
+        'Fortnightly': relativedelta(weeks=2),
+        'Monthly': relativedelta(months=1),
+        'Yearly': relativedelta(years=1),
+    }.get(freq)
+    current = start
+    while True:
+        yield current
+        if not step:
+            break
+        current = current + step
+        if end and current > end:
+            break
 
 # ----------------------
 # CRUD Endpoints
@@ -422,9 +439,10 @@ def get_bill(id):
 
 @app.route('/api/bills', methods=['POST'])
 def create_bill():
-    d = request.get_json()
+    d  = request.get_json()
     sd = parse_date(d.get('startdate'))
     ed = parse_date(d.get('enddate'))
+
     b = Bill(
         name=d.get('name'),
         category=d.get('category'),
@@ -440,28 +458,12 @@ def create_bill():
         propertyid=d.get('propertyid')
     )
     db.session.add(b)
-    db.session.flush()  # b.id now available
+    db.session.flush()  # so b.id is available
 
-    # determine generation end date
     today = date.today()
     gen_end = ed if ed else sd + relativedelta(years=2)
-
-    # choose step from frequency
-    freq = b.frequency
-    if freq == 'Weekly':
-        step = relativedelta(weeks=1)
-    elif freq == 'Fortnightly':
-        step = relativedelta(weeks=2)
-    elif freq == 'Monthly':
-        step = relativedelta(months=1)
-    elif freq == 'Yearly':
-        step = relativedelta(years=1)
-    else:
-        step = None
-
-    current = sd
-    while current and current <= gen_end:
-        status = 'Paid' if current < today else 'Scheduled'
+    for txn_date in _date_series(sd, gen_end, b.frequency):
+        status = 'Paid' if txn_date < today else 'Scheduled'
         txn = Transaction(
             billid=b.id,
             purchaseid=None,
@@ -474,25 +476,22 @@ def create_bill():
             subcategory3=b.subcategory3,
             provider=b.provider,
             amount=b.amount,
-            transactiondate=current,
+            transactiondate=txn_date,
             accountid=b.accountid,
             propertyid=b.propertyid
         )
         db.session.add(txn)
-        if not step:
-            break
-        current += step
 
     db.session.commit()
     return jsonify(b.to_dict()), 201
 
 @app.route('/api/bills/<int:id>', methods=['PUT'])
 def update_bill(id):
-    d = request.get_json()
-    b = Bill.query.get(id)
+    d  = request.get_json()
+    b  = Bill.query.get(id)
     if not b: return jsonify({'msg':'Not found'}), 404
 
-    # update bill
+    # update bill fields
     b.name         = d.get('name')
     b.category     = d.get('category')
     b.subcategory1 = d.get('subcategory1')
@@ -507,31 +506,16 @@ def update_bill(id):
     b.propertyid   = d.get('propertyid')
     db.session.flush()
 
-    # delete future transactions for this bill
+    # delete only the future transactions for this bill
     Transaction.query.filter(
         Transaction.billid == b.id,
         Transaction.transactiondate >= date.today()
-    ).delete()
+    ).delete(synchronize_session=False)
 
-    # re-generate
     today = date.today()
     gen_end = b.enddate if b.enddate else b.startdate + relativedelta(years=2)
-
-    freq = b.frequency
-    if freq == 'Weekly':
-        step = relativedelta(weeks=1)
-    elif freq == 'Fortnightly':
-        step = relativedelta(weeks=2)
-    elif freq == 'Monthly':
-        step = relativedelta(months=1)
-    elif freq == 'Yearly':
-        step = relativedelta(years=1)
-    else:
-        step = None
-
-    current = b.startdate
-    while current and current <= gen_end:
-        status = 'Paid' if current < today else 'Scheduled'
+    for txn_date in _date_series(b.startdate, gen_end, b.frequency):
+        status = 'Paid' if txn_date < today else 'Scheduled'
         txn = Transaction(
             billid=b.id,
             purchaseid=None,
@@ -544,14 +528,11 @@ def update_bill(id):
             subcategory3=b.subcategory3,
             provider=b.provider,
             amount=b.amount,
-            transactiondate=current,
+            transactiondate=txn_date,
             accountid=b.accountid,
             propertyid=b.propertyid
         )
         db.session.add(txn)
-        if not step:
-            break
-        current += step
 
     db.session.commit()
     return jsonify(b.to_dict())
@@ -560,11 +541,11 @@ def update_bill(id):
 def delete_bill(id):
     b = Bill.query.get(id)
     if not b: return jsonify({'msg':'Not found'}), 404
-    # delete all future txns for this bill
+    # delete all its future transactions
     Transaction.query.filter(
         Transaction.billid == id,
         Transaction.transactiondate >= date.today()
-    ).delete()
+    ).delete(synchronize_session=False)
     db.session.delete(b)
     db.session.commit()
     return '', 204
@@ -581,9 +562,10 @@ def get_income(id):
 
 @app.route('/api/incomes', methods=['POST'])
 def create_income():
-    d = request.get_json()
+    d  = request.get_json()
     sd = parse_date(d.get('startdate'))
     ed = parse_date(d.get('enddate'))
+
     inc = Income(
         name=d.get('name'),
         category=d.get('category'),
@@ -603,22 +585,8 @@ def create_income():
 
     today = date.today()
     gen_end = ed if ed else sd + relativedelta(years=2)
-
-    freq = inc.frequency
-    if freq == 'Weekly':
-        step = relativedelta(weeks=1)
-    elif freq == 'Fortnightly':
-        step = relativedelta(weeks=2)
-    elif freq == 'Monthly':
-        step = relativedelta(months=1)
-    elif freq == 'Yearly':
-        step = relativedelta(years=1)
-    else:
-        step = None
-
-    current = sd
-    while current and current <= gen_end:
-        status = 'Paid' if current < today else 'Scheduled'
+    for txn_date in _date_series(sd, gen_end, inc.frequency):
+        status = 'Paid' if txn_date < today else 'Scheduled'
         txn = Transaction(
             billid=None,
             purchaseid=None,
@@ -631,24 +599,22 @@ def create_income():
             subcategory3=inc.subcategory3,
             provider=inc.provider,
             amount=inc.amount,
-            transactiondate=current,
+            transactiondate=txn_date,
             accountid=inc.accountid,
             propertyid=inc.propertyid
         )
         db.session.add(txn)
-        if not step:
-            break
-        current += step
 
     db.session.commit()
     return jsonify(inc.to_dict()), 201
 
 @app.route('/api/incomes/<int:id>', methods=['PUT'])
 def update_income(id):
-    d = request.get_json()
+    d   = request.get_json()
     inc = Income.query.get(id)
     if not inc: return jsonify({'msg':'Not found'}), 404
 
+    # update income fields
     inc.name         = d.get('name')
     inc.category     = d.get('category')
     inc.subcategory1 = d.get('subcategory1')
@@ -663,32 +629,18 @@ def update_income(id):
     inc.propertyid   = d.get('propertyid')
     db.session.flush()
 
-    # delete future income txns
+    # delete only the future income transactions
     Transaction.query.filter(
-        Transaction.direction=='Income',
+        Transaction.direction == 'Income',
         Transaction.transactiondate >= date.today(),
-        Transaction.purchaseid==None,
-        Transaction.billid==None
-    ).delete()
+        Transaction.billid == None,
+        Transaction.purchaseid == None
+    ).delete(synchronize_session=False)
 
     today = date.today()
     gen_end = inc.enddate if inc.enddate else inc.startdate + relativedelta(years=2)
-
-    freq = inc.frequency
-    if freq == 'Weekly':
-        step = relativedelta(weeks=1)
-    elif freq == 'Fortnightly':
-        step = relativedelta(weeks=2)
-    elif freq == 'Monthly':
-        step = relativedelta(months=1)
-    elif freq == 'Yearly':
-        step = relativedelta(years=1)
-    else:
-        step = None
-
-    current = inc.startdate
-    while current and current <= gen_end:
-        status = 'Paid' if current < today else 'Scheduled'
+    for txn_date in _date_series(inc.startdate, gen_end, inc.frequency):
+        status = 'Paid' if txn_date < today else 'Scheduled'
         txn = Transaction(
             billid=None,
             purchaseid=None,
@@ -701,14 +653,11 @@ def update_income(id):
             subcategory3=inc.subcategory3,
             provider=inc.provider,
             amount=inc.amount,
-            transactiondate=current,
+            transactiondate=txn_date,
             accountid=inc.accountid,
             propertyid=inc.propertyid
         )
         db.session.add(txn)
-        if not step:
-            break
-        current += step
 
     db.session.commit()
     return jsonify(inc.to_dict())
@@ -717,13 +666,12 @@ def update_income(id):
 def delete_income(id):
     inc = Income.query.get(id)
     if not inc: return jsonify({'msg':'Not found'}), 404
-    # delete future income txns
     Transaction.query.filter(
-        Transaction.direction=='Income',
+        Transaction.direction == 'Income',
         Transaction.transactiondate >= date.today(),
-        Transaction.purchaseid==None,
-        Transaction.billid==None
-    ).delete()
+        Transaction.billid == None,
+        Transaction.purchaseid == None
+    ).delete(synchronize_session=False)
     db.session.delete(inc)
     db.session.commit()
     return '', 204
