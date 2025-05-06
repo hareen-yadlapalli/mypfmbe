@@ -237,7 +237,7 @@ def update_account(id):
     a = Account.query.get(id)
     if not a:
         return jsonify({'msg':'Not found'}), 404
-    for k in ('type','bsb','accountno','provider','productname','balance','interestrate','emi'):
+    for k in ('type','bsb','accountno','provider','productname','balance','interestrate','emi','propertyid'):
         setattr(a, k, d.get(k))
     db.session.commit()
     return jsonify(a.to_dict())
