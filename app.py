@@ -48,6 +48,7 @@ class Transaction(db.Model):
     id              = db.Column(db.Integer, primary_key=True)
     billid          = db.Column(db.Integer)
     purchaseid      = db.Column(db.Integer)
+    status          = db.Column(db.String(20))
     category        = db.Column(db.String(50))
     subcategory1    = db.Column(db.String(50))
     subcategory2    = db.Column(db.String(50))
@@ -101,6 +102,7 @@ class Bill(db.Model):
 class Category(db.Model):
     __tablename__ = 'categories'
     id           = db.Column(db.Integer, primary_key=True)
+    direction    = db.Column(db.String(20))   
     category     = db.Column(db.String(100))
     subcategory1 = db.Column(db.String(100))
     subcategory2 = db.Column(db.String(100))
@@ -265,7 +267,7 @@ def get_transaction(id):
 def create_transaction():
     d = request.get_json()
     td = parse_date(d.get('transactiondate'))
-    t = Transaction(**{k: d.get(k) for k in ('billid','purchaseid','category','subcategory1','subcategory2','subcategory3','provider','amount','accountid','propertyid')},
+    t = Transaction(**{k: d.get(k) for k in ('billid','purchaseid','status','category','subcategory1','subcategory2','subcategory3','provider','amount','accountid','propertyid')},
                     transactiondate=td)
     db.session.add(t)
     db.session.commit()
@@ -278,7 +280,7 @@ def update_transaction(id):
     if not t:
         return jsonify({'msg':'Not found'}), 404
     t.transactiondate = parse_date(d.get('transactiondate'))
-    for k in ('billid','purchaseid','category','subcategory1','subcategory2','subcategory3','provider','amount','accountid','propertyid'):
+    for k in ('billid','purchaseid','status','category','subcategory1','subcategory2','subcategory3','provider','amount','accountid','propertyid'):
         setattr(t, k, d.get(k))
     db.session.commit()
     return jsonify(t.to_dict())
@@ -426,7 +428,7 @@ def get_category(id):
 @app.route('/api/categories', methods=['POST'])
 def create_category():
     d = request.get_json()
-    c = Category(**{k: d.get(k) for k in ('category','subcategory1','subcategory2','subcategory3')})
+    c = Category(**{k: d.get(k) for k in ('category','subcategory1','subcategory2','subcategory3','direction')})
     db.session.add(c)
     db.session.commit()
     return jsonify(c.to_dict()), 201
@@ -437,7 +439,7 @@ def update_category(id):
     c = Category.query.get(id)
     if not c:
         return jsonify({'msg':'Not found'}), 404
-    for k in ('category','subcategory1','subcategory2','subcategory3'):
+    for k in ('category','subcategory1','subcategory2','subcategory3','direction'):
         setattr(c, k, d.get(k))
     db.session.commit()
     return jsonify(c.to_dict())
