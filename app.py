@@ -49,6 +49,7 @@ class Transaction(db.Model):
     billid          = db.Column(db.Integer)
     purchaseid      = db.Column(db.Integer)
     status          = db.Column(db.String(20))
+    name          =   db.Column(db.String(100))
     category        = db.Column(db.String(50))
     subcategory1    = db.Column(db.String(50))
     subcategory2    = db.Column(db.String(50))
@@ -267,7 +268,7 @@ def get_transaction(id):
 def create_transaction():
     d = request.get_json()
     td = parse_date(d.get('transactiondate'))
-    t = Transaction(**{k: d.get(k) for k in ('billid','purchaseid','status','category','subcategory1','subcategory2','subcategory3','provider','amount','accountid','propertyid')},
+    t = Transaction(**{k: d.get(k) for k in ('billid','purchaseid','name','status','category','subcategory1','subcategory2','subcategory3','provider','amount','accountid','propertyid')},
                     transactiondate=td)
     db.session.add(t)
     db.session.commit()
@@ -280,7 +281,7 @@ def update_transaction(id):
     if not t:
         return jsonify({'msg':'Not found'}), 404
     t.transactiondate = parse_date(d.get('transactiondate'))
-    for k in ('billid','purchaseid','status','category','subcategory1','subcategory2','subcategory3','provider','amount','accountid','propertyid'):
+    for k in ('billid','purchaseid','name','status','category','subcategory1','subcategory2','subcategory3','provider','amount','accountid','propertyid'):
         setattr(t, k, d.get(k))
     db.session.commit()
     return jsonify(t.to_dict())
