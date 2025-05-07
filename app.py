@@ -603,7 +603,7 @@ def create_income():
     for txn_date in _date_series(sd, gen_end, inc.frequency):
         status = 'Paid' if txn_date < today else 'Scheduled'
         txn = Transaction(
-            billid=None,
+            billid=inc.id,
             purchaseid=None,
             name=inc.name,
             direction='Income',
@@ -645,12 +645,10 @@ def update_income(id):
     inc.propertyid   = d.get('propertyid')
     db.session.flush()
 
-    # delete only the future income transactions
+        # delete only the future transactions for this bill
     Transaction.query.filter(
-        Transaction.direction == 'Income',
-        Transaction.transactiondate >= date.today(),
-        Transaction.billid == None,
-        Transaction.purchaseid == None
+        Transaction.billid == inc.id,
+        Transaction.transactiondate >= date.today()
     ).delete(synchronize_session=False)
 
     today = date.today()
