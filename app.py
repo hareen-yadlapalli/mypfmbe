@@ -81,6 +81,8 @@ class PurchasedItem(db.Model):
     __tablename__ = 'purchaseditems'
     id          = db.Column(db.Integer, primary_key=True)
     purchaseid  = db.Column(db.Integer)
+    itemname    = db.Column(db.String(50))
+    itemmake    = db.Column(db.String(50))
     volunits    = db.Column(db.String(50))
     qty         = db.Column(db.Numeric(10, 2))
     price       = db.Column(db.Numeric(15, 2))
@@ -414,7 +416,7 @@ def get_purchased_item(id):
 def create_purchased_item():
     d = request.get_json()
     pi = PurchasedItem(**{k: d.get(k) for k in (
-        'purchaseid','volunits','qty','price','costperunit'
+        'purchaseid','volunits','itemname','itemmake','qty','price','costperunit'
     )})
     db.session.add(pi)
     db.session.commit()
@@ -426,7 +428,7 @@ def update_purchased_item(id):
     pi = PurchasedItem.query.get(id)
     if not pi:
         return jsonify({'msg':'Not found'}), 404
-    for k in ('purchaseid','volunits','qty','price','costperunit'):
+    for k in ('purchaseid','volunits','itemname','itemmake','qty','price','costperunit'):
         setattr(pi, k, d.get(k))
     db.session.commit()
     return jsonify(pi.to_dict())
